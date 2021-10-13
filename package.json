@@ -1,0 +1,16 @@
+{
+  "name": "steamsalecardchecker",
+  "version": "1.0.0",
+  "description": "Search Steam and SteamCardExchange pages to detect which games on sale have cards",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "Jorman",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.23.0",
+    "minimist": "^1.2.5"
+  }
+}

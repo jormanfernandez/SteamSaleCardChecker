@@ -133,7 +133,9 @@ Promise.all(steamPromises).then(async promiseResponses => {
     id: game[0][0],
     name: game[0][1],
     price: apps[game[0][0]],
-    link: `https://store.steampowered.com/app/${game[0][0]}`
+    link: `https://store.steampowered.com/app/${game[0][0]}`,
+    market: `https://steamcommunity.com/market/search?appid=${game[0][0]}`,
+    badgePrice: game[2]
   }));
 
   /**
@@ -172,7 +174,8 @@ Promise.all(steamPromises).then(async promiseResponses => {
     JSON.stringify(gamesWithCards, null, 2), err => {
       if (!err) return;
       console.error(`Couldn't write file: ${err}`);
-    });
+    }
+  );
 
   log("Report generated successfully. Thanks!");
 });

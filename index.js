@@ -6,8 +6,9 @@ const axios = require("axios");
  */
 const argv = require("minimist")(process.argv.slice(2), {
   boolean: ['generateReport', 'omitOwnedGames'],
-  string: ['priceOrder', 'steamId'],
+  string: ['priceOrder', 'steamId', 'country'],
   default: {
+    country: 'ar',
     steamId: '-num',
     omitOwnedGames: true,
     generateReport: true,
@@ -101,7 +102,7 @@ const steamPromises = [];
 log("Starting to checkout sales page...");
 
 while (iterationCounter < argv.iterations) {
-  let steamUrl = `https://store.steampowered.com/search/results/?query&start=${steamStartIndex}&count=${argv.resultsPerPage}&maxprice=${argv.minPrice}&specials=1&infinite=1`;
+  let steamUrl = `https://store.steampowered.com/search/results/?query&start=${steamStartIndex}&count=${argv.resultsPerPage}&maxprice=${argv.minPrice}&specials=1&infinite=1&cc=${argv.country}`;
   steamPromises.push(axios.get(steamUrl));
 
   iterationCounter++;
@@ -128,7 +129,7 @@ Promise.all(steamPromises).then(async promiseResponses => {
       ...ownedGames.map(game => game.appid.toString())
     ];
 
-    log(`Steam Id: ${argv.steamId} has ${ownedApps.length} games. Those games will be skipeed in the report`);
+    log(`Steam Id: ${argv.steamId} has ${ownedApps.length} games. Those games will be skipped in the report`);
   }
 
   for (let r of responses) {
@@ -175,7 +176,7 @@ Promise.all(steamPromises).then(async promiseResponses => {
     }
   });
 
-  log(`${gamesWithCards.length} games have Steam Cards.`)
+  log(`${gamesWithCards.length} games have Steam Cards.`);
 
   if (!argv.generateReport || gamesWithCards.length < 1) return;
 
@@ -194,10 +195,12 @@ Promise.all(steamPromises).then(async promiseResponses => {
   fs.writeFile(
     fileName,
     JSON.stringify(gamesWithCards, null, 2), err => {
-      if (!err) return;
-      console.error(`Couldn't write file: ${err}`);
+      if (!err) {
+        log("Report generated successfully. Thanks!");
+      } else {
+        log(`Couldn't write file: ${err}`);
+      }
     }
   );
 
-  log("Report generated successfully. Thanks!");
 });

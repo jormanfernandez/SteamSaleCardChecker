@@ -162,6 +162,7 @@ Promise.all(steamPromises).then(async promiseResponses => {
     price: apps[game[0][0]],
     link: `https://store.steampowered.com/app/${game[0][0]}`,
     market: `https://steamcommunity.com/market/search?appid=${game[0][0]}`,
+    exchange: `https://www.steamcardexchange.net/index.php?gamepage-appid-${game[0][0]}`,
     badgePrice: game[2]
   }));
 

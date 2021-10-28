@@ -5,9 +5,11 @@ const axios = require("axios");
  * Parse command arguments
  */
 const argv = require("minimist")(process.argv.slice(2), {
-  boolean: ['generateReport'],
-  string: ['priceOrder'],
+  boolean: ['generateReport', 'omitOwnedGames'],
+  string: ['priceOrder', 'steamId'],
   default: {
+    steamId: '-num',
+    omitOwnedGames: true,
     generateReport: true,
     priceOrder: 'asc',
     iterations: 30,
@@ -43,7 +45,7 @@ const log = text => {
  * @param {String} str  
  * @returns {Object}
  */
-const getApps = (str) => {
+const getApps = (str, ownedApps) => {
 
   const parsedString = str.replace(/\n/g, '').replace(/\t/g, '').replace(/\r/g, '')
 
@@ -63,6 +65,10 @@ const getApps = (str) => {
   for (let match of matches) {
 
     const appId = match.split("app/")[1];
+
+    if (argv.omitOwnedGames && ownedApps.indexOf(appId) > -1) {
+      continue;
+    }
 
     /**
      * Regex to extract the block of html code for a single app
@@ -108,9 +114,25 @@ while (iterationCounter < argv.iterations) {
 Promise.all(steamPromises).then(async promiseResponses => {
   const responses = promiseResponses.filter(response => response.data.success == 1).map(response => response.data);
   let apps = {};
+  let ownedApps = [];
+
+  if (argv.omitOwnedGames) {
+    log(`Getting all owned games for Steam Id: ${argv.steamId}`);
+
+    const steamUrl = `https://steamcommunity.com/id/${argv.steamId}/games/?tab=all`;
+    const regexOwnedGames = /var rgGames...\[.*\]/gmi;
+    const response = (await axios.get(steamUrl)).data;
+
+    const ownedGames = JSON.parse(response.match(regexOwnedGames)[0].replace(/var rgGames.../g, ''));
+    ownedApps = [
+      ...ownedGames.map(game => game.appid.toString())
+    ];
+
+    log(`Steam Id: ${argv.steamId} has ${ownedApps.length} games. Those games will be skipeed in the report`);
+  }
 
   for (let r of responses) {
-    const foundApps = getApps(r.results_html);
+    const foundApps = getApps(r.results_html, ownedApps);
     apps = {
       ...apps,
       ...foundApps

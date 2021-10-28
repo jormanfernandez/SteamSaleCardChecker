@@ -142,7 +142,6 @@ const run = async () => {
 
   if (filterTags.length > 0) {
     log(`Limiting search by: ${filterTags.join(", ")}`);
-
     filterTags = filterTags.map(tag => Tag[tag]).join(",");
   } else {
     filterTags = null;
@@ -159,7 +158,7 @@ const run = async () => {
         specials: 1,
         infinite: 1,
         cc: argv.country,
-        tags: filterTags || null
+        tags: filterTags
       }
     })));
 

@@ -15,6 +15,8 @@ The script accepts various arguments to proceess data diferently
 ```json
 {
   "generateReport": "Boolean field to indicate if we want the script to create a report file. Default true",
+  "omitOwnedGames": "A boolean that will lookup the steamId argv to search the user's games and skip those from the report",
+  "steamId": "String with the user name or 64 id to look up the games",
   "priceOrder": "ENUM(asc, desc) to order the results based on the price. Default desc",
   "iterations": "Amount of iterations to lookup in the Steam API. Depends on the amount of game on sales, a good value would be between 15 and 20 to get all the games on the steam sales page",
   "minPrice": "A number divisible by 7. This was made with ARS store in mind... so, sorry not sorry",

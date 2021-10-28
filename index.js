@@ -116,7 +116,7 @@ Promise.all(steamPromises).then(async promiseResponses => {
   let apps = {};
   let ownedApps = [];
 
-  if (argv.omitOwnedGames) {
+  if (argv.omitOwnedGames && argv.steamId) {
     log(`Getting all owned games for Steam Id: ${argv.steamId}`);
 
     const steamUrl = `https://steamcommunity.com/id/${argv.steamId}/games/?tab=all`;

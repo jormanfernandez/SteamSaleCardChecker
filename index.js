@@ -121,6 +121,10 @@ Promise.all(steamPromises).then(async promiseResponses => {
     log(`Getting all owned games for Steam Id: ${argv.steamId}`);
 
     const steamUrl = `https://steamcommunity.com/id/${argv.steamId}/games/?tab=all`;
+
+    /**
+     * Regex to extract the game variable from the profile html 
+     */
     const regexOwnedGames = /var rgGames...\[.*\]/gmi;
     const response = (await axios.get(steamUrl)).data;
 

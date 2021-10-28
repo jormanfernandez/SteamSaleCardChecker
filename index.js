@@ -102,8 +102,18 @@ const steamPromises = [];
 log("Starting to checkout sales page...");
 
 while (iterationCounter < argv.iterations) {
-  let steamUrl = `https://store.steampowered.com/search/results/?query&start=${steamStartIndex}&count=${argv.resultsPerPage}&maxprice=${argv.minPrice}&specials=1&infinite=1&cc=${argv.country}`;
-  steamPromises.push(axios.get(steamUrl));
+  let steamUrl = "https://store.steampowered.com/search/results/";
+  steamPromises.push(axios.get(steamUrl, {
+    params: {
+      query: '',
+      start: steamStartIndex,
+      count: argv.resultsPerPage,
+      maxprice: argv.minPrice,
+      specials: 1,
+      infinite: 1,
+      cc: argv.country
+    }
+  }));
 
   iterationCounter++;
   steamStartIndex = iterationCounter * argv.resultsPerPage;
@@ -120,13 +130,17 @@ Promise.all(steamPromises).then(async promiseResponses => {
   if (argv.omitOwnedGames && argv.steamId) {
     log(`Getting all owned games for Steam Id: ${argv.steamId}`);
 
-    const steamUrl = `https://steamcommunity.com/id/${argv.steamId}/games/?tab=all`;
+    const steamUrl = `https://steamcommunity.com/id/${argv.steamId}/games/`;
 
     /**
      * Regex to extract the game variable from the profile html 
      */
     const regexOwnedGames = /var rgGames...\[.*\]/gmi;
-    const response = (await axios.get(steamUrl)).data;
+    const response = (await axios.get(steamUrl, {
+      params: {
+        tab: "all"
+      }
+    })).data;
 
     const ownedGames = JSON.parse(response.match(regexOwnedGames)[0].replace(/var rgGames.../g, ''));
     ownedApps = [
@@ -149,8 +163,12 @@ Promise.all(steamPromises).then(async promiseResponses => {
   if (Object.keys(apps).length < 1) return;
 
   log("Looking which of them have steam cards...")
-  const steamCardGuestAPI = "https://www.steamcardexchange.net/api/request.php?GetBadgePrices_Guest";
-  const allGamesWithCards = (await axios.get(steamCardGuestAPI)).data.data ?? [];
+  const steamCardGuestAPI = "https://www.steamcardexchange.net/api/request.php";
+  const allGamesWithCards = (await axios.get(steamCardGuestAPI, {
+    params: {
+      GetBadgePrices_Guest: ''
+    }
+  })).data.data ?? [];
 
   /**
    * Searches in steam card exchange to see if the game has any registered card

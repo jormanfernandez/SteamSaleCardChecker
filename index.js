@@ -140,9 +140,13 @@ const run = async () => {
     });
   }
 
-  log(`Limiting search by: ${filterTags.join(", ")}`);
+  if (filterTags.length > 0) {
+    log(`Limiting search by: ${filterTags.join(", ")}`);
 
-  filterTags = filterTags.map(tag => Tag[tag]).join(",");
+    filterTags = filterTags.map(tag => Tag[tag]).join(",");
+  } else {
+    filterTags = null;
+  }
 
   while (iterationCounter < argv.iterations) {
     let steamUrl = "https://store.steampowered.com/search/results/";

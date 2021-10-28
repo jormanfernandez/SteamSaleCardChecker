@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^0.23.0",
+    "jsdom": "^18.0.0",
     "minimist": "^1.2.5"
   }
 }

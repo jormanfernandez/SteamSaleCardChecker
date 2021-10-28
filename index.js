@@ -1,15 +1,18 @@
 const fs = require('fs')
 const axios = require("axios");
 
+const { JSDOM } = require("jsdom");
+
 /**
  * Parse command arguments
  */
 const argv = require("minimist")(process.argv.slice(2), {
   boolean: ['generateReport', 'omitOwnedGames'],
-  string: ['priceOrder', 'steamId', 'country'],
+  string: ['priceOrder', 'steamId', 'country', 'tags'],
   default: {
     country: 'ar',
     steamId: '-num',
+    tags: '',
     omitOwnedGames: true,
     generateReport: true,
     priceOrder: 'asc',
@@ -22,6 +25,9 @@ const argv = require("minimist")(process.argv.slice(2), {
     return !isNaN(value);
   }
 });
+
+const Tag = {};
+
 
 /**
  * 
@@ -48,7 +54,7 @@ const log = text => {
  */
 const getApps = (str, ownedApps) => {
 
-  const parsedString = str.replace(/\n/g, '').replace(/\t/g, '').replace(/\r/g, '')
+  const parsedString = str.replace(/\n/g, '').replace(/\t/g, '').replace(/\r/g, '');
 
   /**
    * Regex used to extract all the app ids from the steam response
@@ -94,36 +100,70 @@ const getApps = (str, ownedApps) => {
   return apps;
 }
 
-let steamStartIndex = 0;
-let iterationCounter = 1;
-
-const steamPromises = [];
-
-log("Starting to checkout sales page...");
-
-while (iterationCounter < argv.iterations) {
-  let steamUrl = "https://store.steampowered.com/search/results/";
-  steamPromises.push(axios.get(steamUrl, {
-    params: {
-      query: '',
-      start: steamStartIndex,
-      count: argv.resultsPerPage,
-      maxprice: argv.minPrice,
-      specials: 1,
-      infinite: 1,
-      cc: argv.country
-    }
-  }));
-
-  iterationCounter++;
-  steamStartIndex = iterationCounter * argv.resultsPerPage;
-}
-
 /**
- * With all the promises parsed, load the responses and start checking which apps contains steam cards
+ * Main function to search the games and generate the report
  */
-Promise.all(steamPromises).then(async promiseResponses => {
-  const responses = promiseResponses.filter(response => response.data.success == 1).map(response => response.data);
+const run = async () => {
+
+  log("Getting the steam tags");
+  const steamSearchUrl = "https://store.steampowered.com/search/";
+  const { window: { document: searchDom } } = new JSDOM((await axios.get(steamSearchUrl)).data);
+  const filterNode = searchDom.querySelector("#TagFilter_Container");
+  const tagNodes = filterNode.querySelectorAll(".tab_filter_control_row");
+  tagNodes.forEach(node => Tag[node.dataset.loc.toLowerCase()] = node.dataset.value);
+
+  log(`Found ${Object.keys(Tag).length} tags`);
+
+  let steamStartIndex = 0;
+  let iterationCounter = 1;
+
+  const steamSearchPages = [];
+
+  log("Starting to checkout sales page...");
+
+  let filterTags = [];
+
+  if (argv.tags) {
+    /**
+     * If the tags argument has any values, it will filter by those.
+     * The arguments should be passed as a string and if the user wants to
+     * search by multiple tags, send them separated by commas like
+     * --tags="Anime,FPS"
+     */
+    let tags = argv.tags.split(",");
+    tags.forEach(tag => {
+      if (!(tag.toLowerCase() in Tag)) {
+        return;
+      }
+
+      filterTags.push(tag.toLowerCase());
+    });
+  }
+
+  log(`Limiting search by: ${filterTags.join(", ")}`);
+
+  filterTags = filterTags.map(tag => Tag[tag]).join(",");
+
+  while (iterationCounter < argv.iterations) {
+    let steamUrl = "https://store.steampowered.com/search/results/";
+    steamSearchPages.push((await axios.get(steamUrl, {
+      params: {
+        query: '',
+        start: steamStartIndex,
+        count: argv.resultsPerPage,
+        maxprice: argv.minPrice,
+        specials: 1,
+        infinite: 1,
+        cc: argv.country,
+        tags: filterTags || null
+      }
+    })));
+
+    iterationCounter++;
+    steamStartIndex = iterationCounter * argv.resultsPerPage;
+  }
+
+  const responses = steamSearchPages.filter(response => response.data.success == 1).map(response => response.data);
   let apps = {};
   let ownedApps = [];
 
@@ -225,5 +265,6 @@ Promise.all(steamPromises).then(async promiseResponses => {
       }
     }
   );
+}
 
-});
+run();

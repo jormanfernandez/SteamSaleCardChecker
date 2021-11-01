@@ -100,6 +100,10 @@ const getApps = (str, ownedApps) => {
   return apps;
 }
 
+/**
+ * Handles all the responses from the steam search pages
+ * @param {Array} promises 
+ */
 const handlePromises = async promises => {
   const responses = promises.filter(response => response.data.success == 1).map(response => response.data);
   let apps = {};
@@ -121,9 +125,7 @@ const handlePromises = async promises => {
     })).data;
 
     const ownedGames = JSON.parse(response.match(regexOwnedGames)[0].replace(/var rgGames.../g, ''));
-    ownedApps = [
-      ...ownedGames.map(game => game.appid.toString())
-    ];
+    ownedApps = ownedGames.map(game => game.appid.toString());
 
     log(`Steam Id: ${argv.steamId} has ${ownedApps.length} games. Those games will be skipped in the report`);
   }
@@ -140,7 +142,7 @@ const handlePromises = async promises => {
 
   if (Object.keys(apps).length < 1) return;
 
-  log("Looking which of them have steam cards...")
+  log("Looking which of them have steam cards...");
   const steamCardGuestAPI = "https://www.steamcardexchange.net/api/request.php";
   const allGamesWithCards = (await axios.get(steamCardGuestAPI, {
     params: {

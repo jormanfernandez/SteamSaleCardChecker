@@ -7,14 +7,17 @@ const { JSDOM } = require("jsdom");
  * Parse command arguments
  */
 const argv = require("minimist")(process.argv.slice(2), {
-  boolean: ['generateReport', 'omitOwnedGames'],
-  string: ['priceOrder', 'steamId', 'country', 'tags'],
+  boolean: ['isGenerateReport', 'isOmitOwnedGames', 'isOnlyCards', 'isOnlyPositiveReviews'],
+  string: ['priceOrder', 'steamId', 'country', 'tags', 'minDiscount'],
   default: {
     country: 'ar',
     steamId: '-num',
     tags: '',
-    omitOwnedGames: true,
-    generateReport: true,
+    isOmitOwnedGames: true,
+    isGenerateReport: true,
+    isOnlyCards: true,
+    minDiscount: null,
+    isOnlyPositiveReviews: false,
     priceOrder: 'asc',
     iterations: 30,
     minPrice: 70,
@@ -61,11 +64,6 @@ const getApps = (str, ownedApps) => {
    */
   const re = /\/app\/\d{1,10}/g;
 
-  /** 
-   * Regex to extract the price tag from the component
-   */
-  const priceRe = /data-price-final=\"\d{0,30}\"/g;
-
   const matches = [...new Set(parsedString.match(re) || [])];
   const apps = {};
 
@@ -73,7 +71,7 @@ const getApps = (str, ownedApps) => {
 
     const appId = match.split("app/")[1];
 
-    if (argv.omitOwnedGames && ownedApps.indexOf(appId) > -1) {
+    if (argv.isOmitOwnedGames && ownedApps.indexOf(appId) > -1) {
       continue;
     }
 
@@ -82,16 +80,35 @@ const getApps = (str, ownedApps) => {
      */
     const gameRe = new RegExp(`<a href="https://store.steampowered.com/app/${appId}.*?<\/a>`, 'gi');
     const block = (parsedString.match(gameRe) ?? [])[0] ?? '';
-    const priceBlock = (block.match(priceRe) ?? [])[0];
+    if (!block) {
+      continue;
+    }
 
-    /**
-     * Gets the price block and then parse it to a string.
-     * Steam returns the final price as a full integer with the latest two digits being the decimals 
-     */
-    apps[appId] = (priceBlock ?? '').replace(/\D/g, '') ?? 0;
-    apps[appId] = parseInt(apps[appId]);
+    const { window: { document: anchor } } = new JSDOM(block);
+    const name = anchor.querySelector('span.title').innerHTML;
+    if (!name) {
+      continue;
+    }
 
-    if (!apps[appId] || apps[appId] <= 0) {
+    if (argv.isOnlyPositiveReviews && !anchor.querySelector('div.search_reviewscore > .positive')) {
+      continue;
+    }
+
+    const discountPercent = Math.abs(parseFloat(anchor.querySelector('.search_discount > span').innerHTML));
+
+    if (argv.minDiscount != null && (argv.minDiscount > discountPercent || discountPercent == null || isNaN(discountPercent))) {
+      continue;
+    }
+
+    const price = parseFloat(anchor.querySelector('.search_price_discount_combined').getAttribute('data-price-final'));
+
+    apps[appId] = {
+      id: appId,
+      name,
+      discountPercent,
+      price
+    }
+    if (!apps[appId].price || apps[appId].price <= 0) {
       delete apps[appId];
       continue;
     }
@@ -109,7 +126,7 @@ const handlePromises = async promises => {
   let apps = {};
   let ownedApps = [];
 
-  if (argv.omitOwnedGames && argv.steamId) {
+  if (argv.isOmitOwnedGames && argv.steamId) {
     log(`Getting all owned games for Steam Id: ${argv.steamId}`);
 
     const steamUrl = `https://steamcommunity.com/id/${argv.steamId}/games/`;
@@ -130,6 +147,14 @@ const handlePromises = async promises => {
     log(`Steam Id: ${argv.steamId} has ${ownedApps.length} games. Those games will be skipped in the report`);
   }
 
+  if (argv.minDiscount) {
+    log(`Skipping games with a discount lower than ${argv.minDiscount}%`);
+  }
+
+  if (argv.isOnlyPositiveReviews) {
+    log('Looking only positive reviews')
+  }
+
   for (let r of responses) {
     const foundApps = getApps(r.results_html, ownedApps);
     apps = {
@@ -142,46 +167,75 @@ const handlePromises = async promises => {
 
   if (Object.keys(apps).length < 1) return;
 
-  log("Looking which of them have steam cards...");
-  const steamCardGuestAPI = "https://www.steamcardexchange.net/api/request.php";
-  const allGamesWithCards = (await axios.get(steamCardGuestAPI, {
-    params: {
-      GetBadgePrices_Guest: ''
-    }
-  })).data.data ?? [];
+  let foundGames = [];
 
-  /**
-   * Searches in steam card exchange to see if the game has any registered card
-   * and then maps the response to have an id, price and a direct link
-   */
-  let gamesWithCards = allGamesWithCards.filter(game => game[0][0] in apps).map(game => ({
-    id: game[0][0],
-    name: game[0][1],
-    price: apps[game[0][0]],
-    link: `https://store.steampowered.com/app/${game[0][0]}`,
-    market: `https://steamcommunity.com/market/search?appid=${game[0][0]}`,
-    exchange: `https://www.steamcardexchange.net/index.php?gamepage-appid-${game[0][0]}`,
-    badgePrice: game[2]
-  }));
+  if (argv.isOnlyCards) {
+    log("Looking which of them have steam cards...");
+    const steamCardGuestAPI = "https://www.steamcardexchange.net/api/request.php";
+    const allGamesWithCards = (await axios.get(steamCardGuestAPI, {
+      params: {
+        GetBadgePrices_Guest: ''
+      }
+    })).data.data ?? [];
 
-  /**
-   * Sorts the game
-   */
-  gamesWithCards.sort((a, b) => argv.priceOrder == 'desc' ? b.price - a.price : a.price - b.price);
-  gamesWithCards = gamesWithCards.map(game => {
-    let price = game.price.toString();
-    let decimals = price.substr(-2);
-    price = `${price.substr(0, price.length - 2)}.${decimals}`;
+    /**
+     * Searches in steam card exchange to see if the game has any registered card
+     * and then maps the response to have an id, price and a direct link
+     */
+    foundGames = allGamesWithCards.filter(game => game[0][0] in apps).map(game => ({
+      ...apps[game[0][0]],
+      link: `https://store.steampowered.com/app/${game[0][0]}`,
+      market: `https://steamcommunity.com/market/search?appid=${game[0][0]}`,
+      exchange: `https://www.steamcardexchange.net/index.php?gamepage-appid-${game[0][0]}`,
+      badgePrice: game[2]
+    }));
 
-    return {
+    /**
+     * Sorts the game
+     */
+    foundGames.sort((a, b) => argv.priceOrder == 'desc' ? b.price - a.price : a.price - b.price);
+    foundGames = foundGames.map(game => {
+      let price = game.price.toString();
+      let decimals = price.substr(-2);
+      price = `${price.substr(0, price.length - 2)}.${decimals}`;
+
+      return {
+        ...game,
+        price
+      }
+    });
+
+    log(`${foundGames.length} games have Steam Cards.`);
+
+  } else {
+    /**
+     * Searches in steam card exchange to see if the game has any registered card
+     * and then maps the response to have an id, price and a direct link
+     */
+    foundGames = Object.values(apps).filter(game => game.id in apps).map(game => ({
       ...game,
-      price
-    }
-  });
+      link: `https://store.steampowered.com/app/${game.id}`,
+      market: `https://steamcommunity.com/market/search?appid=${game.id}`,
+      exchange: `https://www.steamcardexchange.net/index.php?gamepage-appid-${game.id}`,
+    }));
 
-  log(`${gamesWithCards.length} games have Steam Cards.`);
+    /**
+     * Sorts the game
+     */
+    foundGames.sort((a, b) => argv.priceOrder == 'desc' ? b.price - a.price : a.price - b.price);
+    foundGames = foundGames.map(game => {
+      let price = game.price.toString();
+      let decimals = price.substr(-2);
+      price = `${price.substr(0, price.length - 2)}.${decimals}`;
 
-  if (!argv.generateReport || gamesWithCards.length < 1) return;
+      return {
+        ...game,
+        price
+      }
+    });
+  }
+  
+  if (!argv.isGenerateReport || foundGames.length < 1) return;
 
   log("Generating report...");
 
@@ -197,7 +251,7 @@ const handlePromises = async promises => {
 
   fs.writeFile(
     fileName,
-    JSON.stringify(gamesWithCards, null, 2), err => {
+    JSON.stringify(foundGames, null, 2), err => {
       if (!err) {
         log("Report generated successfully. Thanks!");
       } else {

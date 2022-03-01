@@ -14,8 +14,10 @@ This will generate the report for the actual datetime and save it as a log.
 The script accepts various arguments to proceess data diferently
 ```json
 {
-  "generateReport": "Boolean field to indicate if we want the script to create a report file. Default true",
-  "omitOwnedGames": "A boolean that will lookup the steamId argv to search the user's games and skip those from the report",
+  "isGenerateReport": "Boolean field to indicate if we want the script to create a report file. Default true",
+  "isOmitOwnedGames": "A boolean that will lookup the steamId argv to search the user's games and skip those from the report",
+  "isOnlyPositiveReviews": "A Boolean indicating if the user wants only positive reviewed games",
+  "minDiscount": "If indicated with a number, it will search games with a discount at least the number marked",
   "country": "Two letter abbreviation based on steam parameters for the country where the currency will be based on",
   "steamId": "String with the user name or 64 id to look up the games",
   "priceOrder": "ENUM(asc, desc) to order the results based on the price. Default desc",
@@ -28,5 +30,5 @@ The script accepts various arguments to proceess data diferently
 
 To pass those arguments to the script, you should run
 ```sh
-npm start -- --priceOrder=desc --iterations=5 --generateReport=true --tags=FPS,Racing
+npm start -- --priceOrder=desc --iterations=5 --isGenerateReport=true --tags=FPS,Racing
 ```
